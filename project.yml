@@ -1,0 +1,56 @@
+name: ProResCinemaCam
+options:
+  bundleIdPrefix: com.cinema.prores
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    TARGETED_DEVICE_FAMILY: "1" # iPhone only (optimized for iPhone 13 Pro Max)
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    ENABLE_BITCODE: NO
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    GENERATE_INFOPLIST_FILE: NO
+    CLANG_ENABLE_MODULES: YES
+
+targets:
+  ProResCinemaCam:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: ProResCinemaCam/Sources
+      - path: ProResCinemaCam/Resources
+        buildPhase: resources
+    info:
+      path: ProResCinemaCam/Info.plist
+      properties:
+        CFBundleDisplayName: "ProRes Cinema"
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "1"
+        UILaunchScreen:
+          UIColorName: ""
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIRequiresFullScreen: true
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: false
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        NSCameraUsageDescription: "ProRes Cinema needs camera access to record 10-bit Apple ProRes and HDR video with manual exposure controls."
+        NSMicrophoneUsageDescription: "ProRes Cinema needs microphone access to record 48kHz 24-bit Linear PCM stereo audio alongside ProRes video."
+        NSPhotoLibraryAddUsageDescription: "ProRes Cinema needs permission to save recorded ProRes .mov master files to your Photo Library."
+        NSPhotoLibraryUsageDescription: "ProRes Cinema needs access to browse recorded ProRes clips."
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.cinema.prores.cam13promax
+        INFOPLIST_FILE: ProResCinemaCam/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/Frameworks"
