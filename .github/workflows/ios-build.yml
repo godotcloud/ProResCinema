@@ -1,0 +1,96 @@
+name: Build ProResCinemaCam iOS App
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-unsigned-ipa:
+    name: Build iOS App & Package Unsigned IPA
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Auto-Extract ZIP Archive (if uploaded directly without unzipping)
+        run: |
+          if [ ! -f "project.yml" ]; then
+            if [ -f "ProResCinemaCam_iOS_Project.zip" ]; then
+              echo "Detected ProResCinemaCam_iOS_Project.zip in repo root, extracting..."
+              unzip -o ProResCinemaCam_iOS_Project.zip
+            else
+              ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
+              if [ -n "$ZIP_FILE" ]; then
+                echo "Detected $ZIP_FILE, extracting..."
+                unzip -o "$ZIP_FILE"
+              fi
+            fi
+          fi
+          ls -la
+
+      - name: Verify Active Xcode Toolchain
+        run: |
+          xcode-select -p
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen (if not pre-installed)
+        run: |
+          if ! command -v xcodegen &> /dev/null; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: Generate Xcode Project from project.yml
+        run: |
+          if [ -f "project.yml" ]; then
+            xcodegen generate --spec project.yml
+          elif [ -f "ProResCinemaCam/project.yml" ]; then
+            cd ProResCinemaCam && xcodegen generate --spec project.yml && mv ProResCinemaCam.xcodeproj ..
+          fi
+
+      - name: Build for iOS Simulator (Syntax & SDK Verification)
+        run: |
+          xcodebuild clean build \
+            -project ProResCinemaCam.xcodeproj \
+            -scheme ProResCinemaCam \
+            -destination "generic/platform=iOS Simulator" \
+            -configuration Release \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Build Generic iOS Device Archive (arm64 - iPhone 13 Pro Max Target)
+        run: |
+          xcodebuild clean build \
+            -project ProResCinemaCam.xcodeproj \
+            -scheme ProResCinemaCam \
+            -destination "generic/platform=iOS" \
+            -configuration Release \
+            -derivedDataPath build/DerivedData \
+            ARCHS="arm64" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: Package Unsigned IPA for Sideloading / Enterprise Signing
+        run: |
+          mkdir -p build/Payload
+          APP_PATH=$(find build/DerivedData -name "ProResCinemaCam.app" -path "*/Release-iphoneos/*" | head -n 1)
+          echo "Found built app at: $APP_PATH"
+          cp -R "$APP_PATH" build/Payload/
+          cd build
+          zip -r9 ProResCinemaCam-Unsigned.ipa Payload
+          ls -lh ProResCinemaCam-Unsigned.ipa
+
+      - name: Upload Unsigned IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProResCinemaCam-Unsigned-IPA
+          path: build/ProResCinemaCam-Unsigned.ipa
+          retention-days: 30
