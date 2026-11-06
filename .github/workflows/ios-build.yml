@@ -15,21 +15,73 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Auto-Extract ZIP Archive (if uploaded directly without unzipping)
+      - name: Auto-Extract ZIP & Normalize Directory Structure
         run: |
-          if [ ! -f "project.yml" ]; then
-            if [ -f "ProResCinemaCam_iOS_Project.zip" ]; then
-              echo "Detected ProResCinemaCam_iOS_Project.zip in repo root, extracting..."
-              unzip -o ProResCinemaCam_iOS_Project.zip
-            else
-              ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
-              if [ -n "$ZIP_FILE" ]; then
-                echo "Detected $ZIP_FILE, extracting..."
-                unzip -o "$ZIP_FILE"
+          set -e
+          # 1. Always extract any uploaded .zip archive (even if project.yml already exists in root)
+          for z in *.zip; do
+            if [ -f "$z" ]; then
+              echo "Extracting $z..."
+              unzip -o "$z"
+            fi
+          done
+
+          # 2. Ensure target source & resource directories exist for XcodeGen
+          mkdir -p ProResCinemaCam/Sources
+          mkdir -p ProResCinemaCam/Resources
+
+          # 3. Copy Swift sources from either nested zip folders or root directory into ProResCinemaCam/Sources
+          for swift_file in CameraEngine.swift VideoProcessor.swift ProResCinemaCamUI.swift; do
+            if [ ! -f "ProResCinemaCam/Sources/$swift_file" ]; then
+              FOUND_SWIFT=$(find . -name "$swift_file" | head -n 1)
+              if [ -n "$FOUND_SWIFT" ]; then
+                echo "Copying $FOUND_SWIFT -> ProResCinemaCam/Sources/$swift_file"
+                cp "$FOUND_SWIFT" "ProResCinemaCam/Sources/$swift_file"
               fi
             fi
+          done
+
+          # 4. Ensure sample .cube LUT exists in ProResCinemaCam/Resources
+          if [ ! -f "ProResCinemaCam/Resources/Rec709_Cinema.cube" ]; then
+            FOUND_CUBE=$(find . -name "*.cube" | head -n 1)
+            if [ -n "$FOUND_CUBE" ]; then
+              cp "$FOUND_CUBE" "ProResCinemaCam/Resources/Rec709_Cinema.cube"
+            else
+              cat << 'EOF' > ProResCinemaCam/Resources/Rec709_Cinema.cube
+          TITLE "HLG_to_Rec709_Cinema_Contrast"
+          LUT_3D_SIZE 2
+          DOMAIN_MIN 0.0 0.0 0.0
+          DOMAIN_MAX 1.0 1.0 1.0
+          0.000000 0.000000 0.000000
+          0.920000 0.040000 0.020000
+          0.030000 0.940000 0.030000
+          0.960000 0.950000 0.050000
+          0.020000 0.050000 0.950000
+          0.950000 0.060000 0.930000
+          0.040000 0.950000 0.960000
+          1.000000 1.000000 1.000000
+          EOF
+            fi
           fi
-          ls -la
+
+          # 5. Ensure Info.plist exists at ProResCinemaCam/Info.plist
+          if [ ! -f "ProResCinemaCam/Info.plist" ]; then
+            FOUND_PLIST=$(find . -name "Info.plist" | head -n 1)
+            if [ -n "$FOUND_PLIST" ]; then
+              cp "$FOUND_PLIST" "ProResCinemaCam/Info.plist"
+            fi
+          fi
+
+          # 6. Ensure project.yml is in the repository root
+          if [ ! -f "project.yml" ]; then
+            FOUND_PROJ=$(find . -name "project.yml" | head -n 1)
+            if [ -n "$FOUND_PROJ" ]; then
+              cp "$FOUND_PROJ" ./project.yml
+            fi
+          fi
+
+          echo "Verified ProResCinemaCam directory contents:"
+          ls -la ProResCinemaCam/Sources ProResCinemaCam/Resources
 
       - name: Verify Active Xcode Toolchain
         run: |
@@ -46,11 +98,7 @@ jobs:
 
       - name: Generate Xcode Project from project.yml
         run: |
-          if [ -f "project.yml" ]; then
-            xcodegen generate --spec project.yml
-          elif [ -f "ProResCinemaCam/project.yml" ]; then
-            cd ProResCinemaCam && xcodegen generate --spec project.yml && mv ProResCinemaCam.xcodeproj ..
-          fi
+          xcodegen generate --spec project.yml
 
       - name: Build for iOS Simulator (Syntax & SDK Verification)
         run: |
